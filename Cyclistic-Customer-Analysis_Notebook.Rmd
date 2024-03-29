@@ -1,0 +1,2025 @@
+---
+title: "Cyclistic Customer Analysis"
+author: "Stefanus Yudi Irwan"
+date: "2022-08-23"
+Linkedin : "https://www.linkedin.com/in/stefanusyudi22/"
+output: html_document
+---
+
+# A. Prepare Library
+
+Prepare the library for data plotting and analysis
+
+```{r import library}
+library(tidyverse)     # basic library for data analysis
+library(readxl)        # for reading excel files
+library(lubridate)     # for managing time data
+library(geosphere)     # for counting geo distance
+library(ggplot2)       # for plotting data
+library(here)          # for cleaning data
+library(janitor)       # basic library for data analysis
+library(skimr)         # basic library for data analysis
+library(gghighlight)   # to highlight plot
+library(ggalluvial)    # create sankey diagram
+library(reshape2)      # for manipulating data
+library(ggmap)         # showing map in the scatter plot
+library(RColorBrewer)  # give a color gradation
+```
+
+# B. Import and Skim the Cyclistic Historical Data
+
+The Cyclistic historical data was supported by **Google Data Analytics Certificate Program** through [this link](https://divvy-tripdata.s3.amazonaws.com/index.html). I use 12 Month of Cyclistic historical data started from August 2021 till July 2022.The data was already cleaned using microsoft excel before being imported to RStudio.
+
+```{r import data to R environment}
+# Create monthly data frame
+Data_202108 <- read_excel("data_clean/data_clean_202108.xlsx")
+Data_202109 <- read_excel("data_clean/data_clean_202109.xlsx")
+Data_202110 <- read_excel("data_clean/data_clean_202110.xlsx") 
+Data_202111 <- read_excel("data_clean/data_clean_202111.xlsx")
+Data_202112 <- read_excel("data_clean/data_clean_202112.xlsx")
+Data_202201 <- read_excel("data_clean/data_clean_202201.xlsx")
+Data_202202 <- read_excel("data_clean/data_clean_202202.xlsx")
+Data_202203 <- read_excel("data_clean/data_clean_202203.xlsx")
+Data_202204 <- read_excel("data_clean/data_clean_202204.xlsx")
+Data_202205 <- read_excel("data_clean/data_clean_202205.xlsx")
+Data_202206 <- read_excel("data_clean/data_clean_202206.xlsx")
+Data_202207 <- read_excel("data_clean/data_clean_202207.xlsx")
+
+# Combine monthly data frame into one year data frame
+Data_Cyclistic <- rbind(Data_202108,Data_202109,Data_202110,Data_202111,Data_202112,Data_202201,Data_202202,Data_202203,Data_202204,Data_202205,Data_202206
+,Data_202207)
+
+# remove the data from computer memory
+rm(Data_202108, Data_202109, Data_202110, Data_202111, Data_202112, Data_202201,
+   Data_202202, Data_202203, Data_202204, Data_202205, Data_202206, Data_202207)
+```
+
+let's we look at the raw data basic info
+
+```{r skimming data}
+colnames(Data_Cyclistic)     # show the columns and rows
+skim_without_charts(Data_Cyclistic)     # show the basic descriptive statistic
+head(Data_Cyclistic)     # show the first 6 row of the data
+```
+
+from this data skimming we know that the data comprises of
+
+-   **Number of Rows** : 5901463 row
+-   **Number of Columns** : 15 columns
+-   **Categorical Data** : 8 columns (ride_id, rideable_type, day, start_station_name, start_station_id, end_station_name, end_station_id, member_casual)
+-   **Time data** : 2 columns (started_at, ended_at)
+-   **Numerical Data** : 5 columns (duration, start_lat, start_lng, end_lat, end_lng)
+
+with detail as follows
+
+1.  **ride_id** : the identification number for ride from start station to end station in given time
+2.  **rideable_type** : cyclistic company bike type, there are 3 bike type classic bike, docked bike, and electric bike
+3.  **started_at** : date and time when the ride begin
+4.  **ended_at** : date and time when the ride end
+5.  **day** : day name when the ride begin
+6.  **start_station_name** : the name of the station where the ride begin
+7.  **start_station_id** : the id of start station
+8.  **end_station_name** : the name of the station where the ride end
+9.  **end_station_id** : the id of end station
+10. **member_casual** : the riders type in cyclistic company
+11. **duration** : duration of the riders from the start station to the end station
+12. **start_lat** : latitude of the start station
+13. **start_lng** : longitude of the start station
+14. **end_lat** : latitude of the end station
+15. **end_lng** : longitude of the end station
+
+# C. Data Analysis
+
+## C.1. Analysis by duration
+
+We will begin our analysis based on duration data. We want to know the duration distribution for every user type, since duration data is complete for 5,901,463 row of data, I do not need to clean it up anymore, just filter the user type and duration column for this duration analysis.
+
+```{r isolate duration data}
+# take the duration data and user type into separate data frame
+duration_data <- Data_Cyclistic %>% select(duration, member_casual)
+
+# summarize the duration_data properties
+duration_data %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_duration = mean(duration),
+            variance = var(duration),
+            min_duration = min(duration),
+            q1_duration = quantile(duration,0.25),
+            median_duration = median(duration),
+            q3_duration = quantile(duration,0.75),
+            max_duration = max(duration),
+            total_duration = sum(duration),
+            total_data = n())
+
+# plot the duration_data distribution
+ggplot(data = duration_data,
+       mapping = aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,max(duration_data$duration),1000),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Duration Distribution Data",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill="User Type") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5))
+
+# plot the duration_data boxplot
+ggplot(data = duration_data,
+       mapping = aes(x=duration, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Duration Distribution Data",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill="user Type") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        legend.position = "none")
+
+# plot the duration_data boxplot zoomed
+ggplot(data = duration_data,
+       mapping = aes(x=duration, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Duration Distribution Data",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill="User Type") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        legend.position = "none") +
+  scale_x_continuous(limits=c(0,1500))
+
+```
+
+From data skimming and distribution, we see that the casual riders data is more spread than the member data (look at the box plot). This mean that the cyclistic member tend to have purpose to use the bike rather than casual riders. cyclistic members have data range from 0 - 1560 minutes, whereas casual riderss have data range 0 - 41629 minutes. Next I will limit the analysis for this duration based on maximum duration of the cyclistic member (1560 minutes)
+
+```{r filter duration data till 1560 minutes}
+# drop the data point with duration more than 1560 minutes
+duration_data_clean <- duration_data %>% filter(duration <= 1560)
+
+# summarize the duration_data_clean properties
+duration_data_clean %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_duration = mean(duration),
+            variance = var(duration),
+            min_duration = min(duration),
+            q1_duration = quantile(duration,0.25),
+            median_duration = median(duration),
+            q3_duration = quantile(duration,0.75),
+            max_duration = max(duration),
+            total_duration = sum(duration),
+            total_data = n())
+```
+
+after filtering till 1560 minutes we see that the total amount of duration data from cyclistic members still same, 3379237 data point, whereas for casual riders we expect decrease from 2522226 to 2521100, this means 1126 data from casual riders are having duration more than 1560 minutes. This is about 0.04% from the data with duration less than 1560, i think this won't be significant with our analysis result, so it is okay if we drop it to similarize the behaviour of casual riderss and cyclistic members based on duration. After we prepare the data let's look at the visualization for duration data less than 1560 minutes
+
+```{r plot the duration < 1560 minutes}
+# plot the duration_data distribution
+ggplot(data = duration_data_clean,
+       mapping = aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,max(duration_data_clean$duration),60),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Duration Distribution Data",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill="User type") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1560,60),
+                     labels=seq(0,1560,60))
+
+# zoom y the duration_data distribution
+ggplot(data = duration_data_clean,
+       mapping = aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,max(duration_data_clean$duration),60),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Duration Distribution Data Zoomed",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill="User type") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90)) + 
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1560,60),
+                     labels=seq(0,1560,60)) +
+  scale_y_continuous(limits=c(0,150000))
+
+# zoom y the duration_data distribution for x > 120
+ggplot(data = duration_data_clean,
+       mapping = aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,max(duration_data_clean$duration),60),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Duration Distribution Data Zoomed",
+            subtitle = "separated by member type",
+            x = "duration (min)",
+            fill = "User Type") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90)) + 
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1560,60),
+                     labels=seq(0,1560,60)) +
+  scale_y_continuous(limits=c(0,10000))
+
+# plot the duration_data boxplot
+ggplot(data = duration_data_clean,
+       mapping = aes(x=duration, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Duration Distribution Data",
+            subtitle = "separated by member type",
+            x = "duration (min)") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x = element_text(angle=90),
+        legend.position="none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1560,60),
+                     labels=seq(0,1560,60))
+
+# plot the duration_data boxplot Zoomed
+ggplot(data = duration_data_clean,
+       mapping = aes(x=duration, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Duration Distribution Data Zoomed",
+            subtitle = "separated by member type",
+            x = "duration (min)") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x = element_text(angle=90),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1560,60),
+                     labels=seq(0,1560,60),
+                     limits=c(0,360))
+```
+
+From the distribution with bin width 60 minutes (1 hour) we could infer that the data is very positively skewed. Form the histogram we know that after 120 minutes there are not exist significant data point for duration data. Also we could see that after 60 minutes casual riders count is more than cyclistic member count, this could mean that casual riders tend to use the bike longer than the cyclistic member. This difference in duration confirmed by the box plot, we could see that casual riders tend to have longer duration than cyclistic member, we could infer from the median of both data. After seeing this data distribution that very positively skewed, I decide to limit my analysis till the duration 120 minutes, because after this time there are rarely bike user. It also will made the analysis easier and helpful for the Cyclist Company. So I will filter the duration_data_clean till duration not more than 120 minutes
+
+```{r filter the duration data till 120 minutes}
+# drop the data point with duration more than 120 minutes
+duration_data_clean <- duration_data %>% filter(duration <= 120)
+
+# summarize the duration_data_clean properties
+duration_data_clean %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_duration = mean(duration),
+            variance = var(duration),
+            min_duration = min(duration),
+            q1_duration = quantile(duration,0.25),
+            median_duration = median(duration),
+            q3_duration = quantile(duration,0.75),
+            max_duration = max(duration),
+            total_duration = sum(duration),
+            total_data = n())
+```
+
+After filtering untill duration less than 120 minutess we have 2474854 data point for casual riders and 3372785 data point for cyclistic member. I want to know exactly how much data that I don't use to do the analysis.
+
+```{r calculate the duration data percentage being used for analysis}
+count_duration <- data.frame(data=c("Duration Data Used","Duration Data Filtered"),
+                             data_count=c(length(duration_data_clean$duration),
+                                          length(Data_Cyclistic$duration)-length(duration_data_clean$duration)))
+
+count_duration$fraction <- count_duration$data_count / sum(count_duration$data_count)
+count_duration$ymax <- cumsum(count_duration$fraction)
+count_duration$ymin <- c(0, head(count_duration$ymax, n=-1))
+count_duration$labelPosition <- (count_duration$ymax + count_duration$ymin)/2
+count_duration$label <- paste0(count_duration$data, "\n fraction: ", round(count_duration$fraction*100,2),"%")
+
+ggplot(data=count_duration, mapping=aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=data)) +
+  geom_rect() +
+  geom_text(x=2, aes(y=labelPosition, label=label, color=data), size=3.5) +
+  labs(title="Portion of duration data used and filtered") +
+  scale_fill_manual(values=c("#EA4235","#43A853")) +
+  scale_color_manual(values=c("#EA4235","#43A853")) +
+  coord_polar(theta="y") +
+  xlim(c(0,4)) +
+  theme_void()
+
+```
+
+This donut chart shows that I use nearly all the data, 99.09% i used for analysis and then just 0,91% data I filtered. This also means that about 99.09% duration data are in the range 0-120 minutes. Which is good for analysis process. From the descriptive statistic we could also infer that casual riders take the bike longer than cyclistic member, we could see also from it's mean, variance, q1, median, and q3. Although casual riders is not much as cyclistic member but they take the bike longer. Next we will plot the data with duration less than 120 minutess.
+
+```{r distribution plot for casual riders and cyclistic member}
+# histogram of duration data of casual riders and cyclistic member
+ggplot(data=duration_data_clean,
+       mapping=aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) + 
+  geom_histogram(breaks=seq(0,120,1),
+                 position="identity",
+                 alpha=.5) +
+  scale_x_continuous(breaks=seq(0,120,10),
+                     labels=seq(0,120,10)) +
+  scale_y_continuous(breaks=seq(0,275000,50000)) +
+  labs(title="Duration Data Distribution",
+       subtitle="1 minutes Binwidth, Separated By User Type",
+       x="Duration (min)",
+       y="Count",
+       fill="User Type") +
+  theme_bw()+
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  geom_vline(xintercept=20, linetype="dashed", color="#EA4235", size=1)
+
+# cyclistic member histogram
+ggplot(data=duration_data_clean,
+       mapping=aes(x=duration, fill=factor(member_casual, levels=c("casual","member")))) + 
+  geom_histogram(breaks=seq(0,120,1),
+                 position="identity",
+                 alpha=1) +
+  scale_x_continuous(breaks=seq(0,120,10),
+                     labels=seq(0,120,10)) +
+  scale_y_continuous(breaks=seq(0,275000,50000)) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#E6E6E6","#4385F5")) +
+  annotate("text", x=80, y=150000, label="Member", color="#4385F5", size=15)
+
+# casual riders histogram 
+ggplot(data=duration_data_clean,
+       mapping=aes(x=duration, fill=factor(member_casual, levels=c("member","casual")))) + 
+  geom_histogram(breaks=seq(0,120,1),
+                 position="identity",
+                 alpha=1) +
+  scale_x_continuous(breaks=seq(0,120,10),
+                     labels=seq(0,120,10)) +
+  scale_y_continuous(breaks=seq(0,275000,50000)) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#E6E6E6","#F9BB04")) +
+  annotate("text", x=80, y=150000, label="Casual", color="#F9BB04", size=15)
+
+# boxplot of duration from casual riders and casual riders
+ggplot(data=duration_data_clean, mapping=aes(x=duration, y=member_casual, fill=member_casual)) + 
+  geom_boxplot() + 
+  scale_x_continuous(breaks=seq(0,125,10),
+                     labels=seq(0,125,10)) +
+  labs(x="Duration (min)",
+       y="User Type",
+       title="Duration Boxplot",
+       subtitle="Separated By User Type") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+from the histogram I know that amount of cyclistic member within duration interval 0 - 20 minutes is larger than the casual riders, and within duration interval 20 - 120 minutes amount of casual riders is higher than the cyclistic member. So based on this behaviour difference, I will separate the duration into 2 time frame, the first is **0 - 20 minutes** and the second is **20 - 120 minutes**. Casual riders in the first time frame (0 - 20 minutes) can be potential candidate for becoming the cyclistic member rather than at the second time frame (20 - 120 minutes) because they might be have similar behavior with the cyclistic member. Lets we count the count difference between casual riders and cyclistic member for this two time frame
+
+```{r calculate the riders amount in every duration}
+# create the ggplot object
+duration_data_1 <- ggplot(data=duration_data_clean, mapping=aes(x=duration, fill=member_casual)) +
+  geom_histogram(breaks=seq(0,120,20), position="identity")
+duration_data_2 <- ggplot(data=duration_data_clean, mapping=aes(x=duration, fill=member_casual)) +
+  geom_histogram(breaks=seq(20,120,100), position="identity")
+
+# fetch the ggplot object data using ggplot_build
+count_duration_data_1 <- ggplot_build(duration_data_1)$data[[1]]$count
+count_duration_data_2 <- ggplot_build(duration_data_2)$data[[1]]$count
+
+# get the casual and riders count for each data frame
+casual_riders_1 <- count_duration_data_1[1]
+casual_riders_2 <- count_duration_data_2[1]
+member_riders_1 <- count_duration_data_1[7]
+member_riders_2 <- count_duration_data_2[2]
+
+# plot the number using bar chart
+duration_summary = data.frame(time_frame=c("0-20 minutes","0-20 minutes","20-120 minutes","20-120 minutes"),
+                              candidate=c("casual riders","cyclistic member","casual riders","cyclistic member"),
+                              number=c(casual_riders_1,member_riders_1,casual_riders_2,member_riders_2),
+                              percentage=c(round((100*casual_riders_1/(casual_riders_1+casual_riders_2)),1),
+                                           round((100*member_riders_1/(member_riders_1+member_riders_2)),1),
+                                           round((100*casual_riders_2/(casual_riders_1+casual_riders_2)),1),
+                                           round((100*member_riders_2/(member_riders_1+member_riders_2)),1)))
+
+# clear unused data to save more space
+rm(duration_data_1,duration_data_2, count_duration_data_1,count_duration_data_2,
+   casual_riders_1,casual_riders_2,member_riders_1,member_riders_2)
+```
+
+```{r barplot of riders per time frame}
+
+ggplot(data=duration_summary, mapping=aes(x=time_frame, y=number, fill=candidate)) +
+  geom_bar(position="stack", stat="identity") +
+  #facet_wrap(~time_frame) +
+  geom_text(aes(label=number), position=position_stack(vjust=0.5), fontface="bold", size=6, color="white") +
+  labs(title="Number Of User By Duration",
+       subtitle="Separated By User Type",
+       x="Duration",
+       y="Number of User",
+       fill="User Type") +
+  scale_y_continuous(breaks=seq(0,4750000,500000)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5))+
+        #axis.text.y = element_blank(),
+        #axis.ticks.y = element_blank(),
+        #legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+
+ggplot(data=duration_summary, mapping=aes(x=time_frame, y=number, fill=candidate)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~candidate) +
+  geom_text(aes(label=number), vjust=-0.5, fontface="bold", size=6) +
+  geom_text(aes(label=paste(percentage,"%")), vjust=1.5, color="white", fontface="bold", size=6) +
+  labs(title="Number Of User By Duration",
+       subtitle="Separated By User Type",
+       x="Duration",
+       y="Number of User",
+       fill="User Type") +
+  scale_y_continuous(limits=c(0,3250000)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+from this duration analysis we could infer some information :
+
+-   cyclistic member most likely use the bike within time **0-20 minutes**. **83.6%** cyclistic member use their bike for **0-20 minutes**, and the rest, **16.7%**, use their bike for **20-120 minutes**.
+-   casual riders also behaves like cyclistic member, around **65.7%** casual riders use the bike within **0-20 minutes** and the rest **34.3%** use the bike for **20-120 minutes**. But at time frame 20-120 minutes amount of casual riders is leading the cyclistic member amount.
+-   **casual riders** at time frame **0-20 minutes** could be **good potential to be cyclistic member** if casual riders in this time frame has similar behaviour with the cyclistic member. For next analysis let's we examine the distance
+
+## C.2. Analysis by Distance
+
+From the data info before we know that there are no distance data but we have start station and end station longitude and latitude data, and there are also 5590 data point from end coordinate that are missing. I'll try to drop this data because I couldn't calculate the distance without the end coordinate, and the number also far significant than the full data point 5901463, which is just 0.09% from the overall data. Next I'll select the longitude and latitude data for distance calculation using **distHaversine** function for calculating distance from longitude and latitude data.
+
+```{r clean distance data and calculate distance}
+#drop data with empty end coordinate and get coordinate data
+distance_data <- Data_Cyclistic %>%
+  filter(!is.na(end_lat)) %>%
+  select(start_lat, start_lng, end_lat, end_lng, member_casual)
+
+# calculate the distance
+distance_data <- distance_data %>% 
+  mutate(distance = round(distHaversine(cbind(distance_data$start_lng,distance_data$start_lat),
+                                  cbind(distance_data$end_lng, distance_data$end_lat)),digits=5)) 
+
+# look at the distance_data
+distance_data %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+```{r plot the distance data distribution}
+# histogram distance_data distribution
+ggplot(data = distance_data,
+       mapping = aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,max(distance_data$distance),5000),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Distance Distribution Data",
+            subtitle = "separated by member type",
+            x = "distance (m)",
+            fill="User Type") +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,max(distance_data$distance),100000),
+                     labels=seq(0,max(distance_data$distance),100000))
+
+# plot the duration_data boxplot
+ggplot(data = distance_data,
+       mapping = aes(x=distance, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Distance Distribution Data",
+            subtitle = "separated by member type",
+            x = "distance (m)") +
+  theme(plot.title = element_text(hjust=.5),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,max(distance_data$distance),100000),
+                     labels=seq(0,max(distance_data$distance),100000))
+```
+
+casual riders data tend to be more spread, because there are nonsense data (1190854 m) this makes a large gap between the q3 and maximum value. Next we try to limit the data by maximum value of cyclistic member distance (42319.46). This histogram also show us that the data is very positively skewed again like the duration data. Next I'll limit the distance till the maximum value of the member
+
+```{r limit distance data < 42320 m}
+# limit the distance data by max value of cyclistic member
+distance_data <- distance_data %>% 
+  filter(distance <= 42320)
+
+# look at the distance_data
+distance_data %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+the result of filtering the distance till 42320 we drop 2 data point from casual riders. Next we will examine the distance distribution
+
+```{r plot the distance data distribution with distance < 42320 m}
+# histogram distance_data distribution
+ggplot(data = distance_data,
+       mapping=aes(x=distance, fill=factor(member_casual, levels=c("casual","member"))))+
+  geom_histogram(breaks=seq(0,max(distance_data$distance),200),
+                 position = "identity",
+                 alpha = .5) +
+  scale_x_continuous(breaks=seq(0,max(distance_data$distance),5000),
+                     labels=seq(0,max(distance_data$distance),5000)) +
+  labs(title = "Distance Distribution Data",
+            subtitle = "separated by member type",
+            x = "distance (m)",
+            fill="User Type") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5))
+
+
+# zoomed histogram distance_data distribution
+ggplot(data = distance_data,
+       mapping = aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,15000,200),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Distance Distribution Data (0-15000 m) Zoomed",
+            subtitle = "separated by member type",
+            x = "distance (m)",
+            fill="User Type") +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5),
+        axis.text.x=element_text(angle=90)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,15000,1000),
+                     labels=seq(0,15000,1000))
+
+# zoomed histogram distance_data distribution
+ggplot(data = distance_data,
+       mapping = aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(0,1000,200),
+                 position = "identity",
+                 alpha = .5,) +
+  labs(title = "Distance Distribution Data (0-1000 m) Zoomed",
+            subtitle = "separated by member type",
+            x = "distance (m)",
+            fill="User Type") +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,1000,200),
+                     labels=seq(0,1000,200))
+
+# zoomed histogram distance_data distribution
+ggplot(data = distance_data,
+       mapping = aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) +
+  geom_histogram(breaks=seq(8000,13000,200),
+                 position = "identity",
+                 alpha = .5) +
+  labs(title = "Distance Distribution Data (8000-13000 m) Zoomed",
+            subtitle = "separated by member type",
+            x = "distance (m)",
+            fill="User Type") +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(8000,13000,1000),
+                     labels=seq(8000,13000,1000))
+
+# plot the distance_data boxplot
+ggplot(data = distance_data,
+       mapping = aes(x=distance, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Distance Distribution Data",
+            subtitle = "separated by member type",
+            x = "distance (m)") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5),
+        legend.position="none")
+
+# plot the distance_data boxplot
+ggplot(data = distance_data,
+       mapping = aes(x=distance, y=member_casual, fill=member_casual)) +
+  geom_boxplot() +
+  labs(title = "Distance Distribution Data (0-10000 m) Zoomed",
+            subtitle = "separated by member type",
+            x = "distance (m)") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  theme(plot.title = element_text(hjust=.5, size=20),
+        plot.subtitle = element_text(hjust=.5),
+        legend.position="none") +
+  scale_x_continuous(breaks=seq(0,10000,1000),
+                     labels=seq(0,10000,1000),
+                     limits=c(0,10000,100))
+
+```
+
+from the histogram we could see that at the first bin (0-200 m), there are more casual riders than the cyclistic member. But after the first bin there are more cyclistic member than casual riders for every distance bin. We could also look that at distance (200-2000 m) there are significant difference between casual riders and cyclistic member compare to another distance bin. And we could also take a look that after 9000 m there is no significant data. From the boxplot we could see that casual riders tend to ride more far than cyclistic member. We could infer it from the q1, median, and q3 of casual riders which larger than the cyclistic member. So based on this analysis I would separate distance analysis into three distance frame. First is **0 - 200 m** because there are more casual riders than the cyclistic member at this distance. Second **200 - 2000 m** because there is significant difference between casual riders and cyclistic member. Third **2000 - 9000 m** because the difference between the casual riders and cyclistic member not as large as second distance frame. Next I'll fillter the distance data till maximum value of 9000 m
+
+```{r filter data into maximum distance 9000 m}
+distance_data_clean <- distance_data %>% filter(distance >= 0 & distance < 9000)
+
+# look at the distance_data_clean
+distance_data_clean %>% 
+  group_by(member_casual) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+after filtering the data till distance 9000 m. I want to know how much of distance data that I use to do this distance analysis
+
+```{r calculate the distance data percentage being used for analysis}
+count_distance <- data.frame(data=c("Distance Data Used","Distance Data Filtered"),
+                             data_count=c(length(distance_data_clean$distance),
+                                          length(Data_Cyclistic$start_lat)-length(distance_data_clean$distance)))
+
+count_distance$fraction <- count_distance$data_count / sum(count_distance$data_count)
+count_distance$ymax <- cumsum(count_distance$fraction)
+count_distance$ymin <- c(0, head(count_distance$ymax, n=-1))
+count_distance$labelPosition <- (count_distance$ymax + count_distance$ymin)/2
+count_distance$label <- paste0(count_distance$data, "\n fraction: ", round(count_distance$fraction*100,2),"%")
+
+ggplot(data=count_distance, mapping=aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=data)) +
+  geom_rect() +
+  geom_text(x=2, aes(y=labelPosition, label=label, color=data), size=3.5) +
+  labs(title="Portion of distance data used and filtered") +
+  scale_fill_manual(values=c("#EA4235","#43A853")) +
+  scale_color_manual(values=c("#EA4235","#43A853")) +
+  coord_polar(theta="y") +
+  xlim(c(0,4)) +
+  theme_void()
+```
+
+we could know that after filtering so much data at the end we just filter 1.34% of the distance data, and use 98.66% of the data for our analysis. This also means that 98.66% distance data lies in the interval 0-9000 m. Next we will look at the distance data distribution
+
+```{r plot for distance data less than 9000}
+# histogram of duration_data_clean
+ggplot(data=distance_data_clean,
+       mapping=aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) + 
+  geom_histogram(breaks=seq(0,9000,200),
+                 position="identity",
+                 alpha=.5) +
+  scale_x_continuous(breaks=seq(0,9000,1000),
+                     labels=seq(0,9000,1000)) +
+  scale_y_continuous(breaks=seq(0,310000,50000)) +
+  labs(title="Distance Data Distribution",
+       subtitle="200 m Binwidth, Separated By User Type",
+       x="Distance (m)",
+       y="Count",
+       fill="User Type") +
+  theme_bw()+
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  geom_vline(xintercept=200, linetype="dashed", color="#EA4235", size=1) +
+  geom_vline(xintercept=2000, linetype="dashed", color="#EA4235", size=1) 
+
+ggplot(data=distance_data_clean,
+       mapping=aes(x=distance, fill=factor(member_casual, levels=c("casual","member")))) + 
+  geom_histogram(breaks=seq(0,9000,200),
+                 position="identity",
+                 alpha=1) +
+  scale_x_continuous(breaks=seq(0,9000,1000),
+                     labels=seq(0,9000,1000)) +
+  #scale_y_continuous(breaks=seq(0,275000,50000)) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#E6E6E6","#4385F5")) +
+  annotate("text", x=6000, y=150000, label="Member", color="#4385F5", size=15)
+
+ggplot(data=distance_data_clean,
+       mapping=aes(x=distance, fill=factor(member_casual, levels=c("member","casual")))) + 
+  geom_histogram(breaks=seq(0,9000,200),
+                 position="identity",
+                 alpha=1) +
+  scale_x_continuous(breaks=seq(0,9000,1000),
+                     labels=seq(0,9000,1000)) +
+  #scale_y_continuous(breaks=seq(0,275000,50000)) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#E6E6E6","#F9BB04")) +
+  annotate("text", x=6000, y=150000, label="Casual", color="#F9BB04", size=15)
+
+# boxplot of duration_data_clean
+ggplot(data=distance_data_clean, mapping=aes(x=distance, y=member_casual, fill=member_casual)) + 
+  geom_boxplot() + 
+  scale_x_continuous(breaks=seq(0,9000,1000),
+                     labels=seq(0,9000,1000)) +
+  labs(x="Distance(m)",
+       y="User Type",
+       title="Boxplot of Distance",
+       subtitle="Separated by User Type") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+```{r calculate riders in every distance}
+# create the ggplot object
+distance_data_1 <- ggplot(data=distance_data_clean, mapping=aes(x=distance, fill=member_casual)) +
+  geom_histogram(breaks=seq(0,200,200), position="identity")
+distance_data_2 <- ggplot(data=distance_data_clean, mapping=aes(x=distance, fill=member_casual)) +
+  geom_histogram(breaks=seq(200,2000,1800), position="identity")
+distance_data_3 <- ggplot(data=distance_data_clean, mapping=aes(x=distance, fill=member_casual)) +
+  geom_histogram(breaks=seq(2000,9000,7000), position="identity")
+
+# fetch the ggplot object data using ggplot_build
+count_distance_data_1 <- ggplot_build(distance_data_1)$data[[1]]$count
+count_distance_data_2 <- ggplot_build(distance_data_2)$data[[1]]$count
+count_distance_data_3 <- ggplot_build(distance_data_3)$data[[1]]$count
+
+
+# get the casual and riders count for each data frame
+casual_riders_1_distance <- count_distance_data_1[1]
+casual_riders_2_distance <- count_distance_data_2[1]
+casual_riders_3_distance <- count_distance_data_3[1]
+member_riders_1_distance <- count_distance_data_1[2]
+member_riders_2_distance <- count_distance_data_2[2]
+member_riders_3_distance <- count_distance_data_3[2]
+
+# plot the number using bar chart
+distance_summary = data.frame(distance_frame=c("0-200 m","0-200 m",
+                                               "200-2000 m","200-2000 m",
+                                               "2000-9000 m","2000-9000 m"),
+                              candidate=c("casual", "member","casual", "member","casual", "member"),
+                              number=c(casual_riders_1_distance,member_riders_1_distance,
+                                       casual_riders_2_distance,member_riders_2_distance,
+                                       casual_riders_3_distance,member_riders_3_distance),
+                              percentage=c(round((100*casual_riders_1_distance/(casual_riders_1_distance
+                                                                    +casual_riders_2_distance
+                                                                    +casual_riders_3_distance)),1),
+                                           round((100*member_riders_1_distance/(member_riders_1_distance
+                                                                    +member_riders_2_distance
+                                                                    +member_riders_3_distance)),1),
+                                           round((100*casual_riders_2_distance/(casual_riders_1_distance
+                                                                    +casual_riders_2_distance
+                                                                    +casual_riders_3_distance)),1),
+                                           round((100*member_riders_2_distance/(member_riders_1_distance
+                                                                    +member_riders_2_distance
+                                                                    +member_riders_3_distance)),1),
+                                           round((100*casual_riders_3_distance/(casual_riders_1_distance
+                                                                    +casual_riders_2_distance
+                                                                    +casual_riders_3_distance)),1),
+                                           round((100*member_riders_3_distance/(member_riders_1_distance
+                                                                    +member_riders_2_distance
+                                                                    +member_riders_3_distance)),1)))
+
+# clear unused data to save more space
+rm(distance_data_1,distance_data_2,distance_data_3, count_distance_data_1,count_distance_data_2,count_distance_data_3,
+   casual_riders_1_distance,casual_riders_2_distance,casual_riders_3_distance,member_riders_1_distance,member_riders_2_distance,
+   member_riders_3_distance)
+```
+
+After separating into three different distance group, next let's we analyze how much riders for every distance frame.
+
+```{r plot the number of data per distance frame}
+
+ggplot(data=distance_summary, mapping=aes(x=distance_frame, y=number, fill=candidate)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~candidate) +
+  geom_text(aes(label=number), vjust=-0.5, fontface="bold", size=6) +
+  geom_text(aes(label=paste(percentage,"%")), vjust=1.2, color="white", fontface="bold", size=5) +
+  labs(title="Number Of User By Distance",
+       subtitle="Separated By User Type",
+       x="Distance",
+       y="Number of User",
+       fill="User Type") +
+  scale_y_continuous(limits=c(0,2250000)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "none") +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+from this distance analysis we could infer some information :
+
+-   **cyclistic member** tend to use the bike for **distance 200-2000 m**, this account about **57.3%** of cyclistic member. In the second place about **36.5%** cyclistic member use the bike for distance **2000-9000 m** and less at distance **0-200 m**, just about **6,2%**.
+-   same as cyclistic member **most casual riders** also tend to use the bike for **200-2000m**, this is account about **47.5%** of casual riders. In the second place about **42.2%** for distance **2000-9000 m** and slight at distance **0-200 m**, just about **10.2%**.
+-   casual riders at distance **0-200 m** is larger than at cyclistic member in the same distance frame. The value is **10,2%** compare to **6.2%**. Within this distance frame the number of casual riders is more than the number of cyclistic member.
+-   I think casual riders at distance **200 - 2000 m** will be a **good potential** to be the cyclistic member if they have similar behavior with most of the cyclistic member at this distance frame. **Next potential** casual riders is whom use the bike for distance **2000-9000**. m
+
+## C.3. Combine Analysis between distance and duration
+
+Prepare the complete data, filter null data and calculate the distance
+
+```{r prepairing the data}
+#drop data with empty end coordinate and get coordinate data
+data_cyclistic_clean <- Data_Cyclistic %>% filter(!is.na(end_lat))
+
+# calculate the distance again
+data_cyclistic_clean <- data_cyclistic_clean %>% 
+  mutate(distance = round(distHaversine(cbind(data_cyclistic_clean$start_lng, data_cyclistic_clean$start_lat),
+                                  cbind(data_cyclistic_clean$end_lng, data_cyclistic_clean$end_lat)),digits=5))
+```
+
+Lets we begin our combine analysis by examining the most interesting distance frame 200-2000 m. We begin by filtering the raw data by distance 200-2000m then filtering the duration to maximum 120 minutes
+
+### 1. Distance 200-2000 m
+
+```{r data 200 - 2000 m}
+# filter by distance 200-2000 m
+combine_data_1 <- data_cyclistic_clean %>% filter(distance>200 & distance<=2000)
+
+# filter by time frame interest
+combine_data_1_1 <- combine_data_1 %>% filter(duration <= 20) 
+combine_data_1_2 <- combine_data_1 %>% filter(duration > 20 & duration <= 120) 
+
+# add the time frame data into the data frame
+combine_data_1_1 <- combine_data_1_1 %>% mutate(time_frame = "0-20 minutes")
+combine_data_1_2 <- combine_data_1_2 %>% mutate(time_frame = "20-120 minutes")
+
+# combine the data
+combine_data_1 <- rbind(combine_data_1_1, combine_data_1_2)
+
+# look at the dascriptive statistic
+combine_data_1 %>% 
+  group_by(member_casual, time_frame) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+```{r plot data 200-2000 m traveling}
+# bar plot
+ggplot(data=combine_data_1, mapping=aes(x=time_frame, fill=member_casual)) +
+  geom_bar(position=position_dodge()) +
+  labs(title="Difference between member and casual riders for distance 200 - 2000 m") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+for distance 200 - 2000 m casual riders dominate at the duration of 20 - 120 minutes, whereas cyclistic member dominate in duration less than 20 minutes. Good casual riders potential is when they use bike at distance 200-2000 m with duration 0-20 minutes. From this bar plot we could infer that the cyclistic member tend to use the bike for short duration 0-20 minutes rather than 20-120 minutes for distance 200-2000 m, it is clear from the huge difference between the cyclistic member at 0-20 minutes and cyclistic member at 20-120 minutes.
+
+## 2. Distance 2000 - 9000 m
+
+```{r data 2000-9000 m}
+# filter by distance 2000-9000 m
+combine_data_2 <- data_cyclistic_clean %>% filter(distance>2000 & distance<=9000)
+
+# filter by time frame interest
+combine_data_2_1 <- combine_data_2 %>% filter(duration <= 20) 
+combine_data_2_2 <- combine_data_2 %>% filter(duration > 20 & duration <= 120) 
+
+# add the time frame data into the data frame
+combine_data_2_1 <- combine_data_2_1 %>% mutate(time_frame = "0-20 minutes")
+combine_data_2_2 <- combine_data_2_2 %>% mutate(time_frame = "20-120 minutes")
+
+# combine the data
+combine_data_2 <- rbind(combine_data_2_1, combine_data_2_2)
+
+# look at the dascriptive statistic
+combine_data_2 %>% 
+  group_by(member_casual, time_frame) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+```{r plot data 2000-9000 m travelling}
+# bar plot
+ggplot(data=combine_data_2, mapping=aes(x=time_frame, fill=member_casual)) +
+  geom_bar(position=position_dodge()) +
+  labs(title="Difference between member and casual riders for distance 2000 - 9000 m") +
+  theme_bw()+
+  theme(plot.title = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+for distance 2000-9000 m casual riders dominate at time frame 20 - 120 minutes, whereas cyclistic member dominate in time frame less than 20 minutes. Same as data at distance 200 - 2000 m. It looks like that cyclistic member indeed use the bike just for short time rather than long time
+
+## 3. Disatance 0 - 200 m
+
+```{r data 0 - 200 m }
+# filter by distance 0-200 m
+combine_data_3 <- data_cyclistic_clean %>% filter(distance<=200)
+
+# filter by time frame interest
+combine_data_3_1 <- combine_data_3 %>% filter(duration <= 20) 
+combine_data_3_2 <- combine_data_3 %>% filter(duration > 20 & duration <= 120) 
+
+# add the time frame data into the data frame
+combine_data_3_1 <- combine_data_3_1 %>% mutate(time_frame = "0-20 minutes")
+combine_data_3_2 <- combine_data_3_2 %>% mutate(time_frame = "20-120 minutes")
+
+# combine the data
+combine_data_3 <- rbind(combine_data_3_1, combine_data_3_2)
+
+# look at the dascriptive statistic
+combine_data_3 %>% 
+  group_by(member_casual, time_frame) %>% 
+  summarize(mean_distance = mean(distance),
+            variance = var(distance),
+            min_distance = min(distance),
+            q1_distance = quantile(distance,0.25),
+            median_distance = median(distance),
+            q3_distance = quantile(distance,0.75),
+            max_distance = max(distance),
+            total_distance = sum(distance),
+            total_data = n())
+```
+
+```{r plot data 0-200 m}
+# bar plot
+ggplot(data=combine_data_3, mapping=aes(x=time_frame, fill=member_casual)) +
+  geom_bar(position=position_dodge()) +
+  labs(title="Difference between member and casual riders for distance 2000 - 9000 m") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5"))
+```
+
+for distance 0 - 200 m casual riders dominate at time frame 20 - 120 minutes, whereas cyclistic member dominate in time frame less than 20 minutes.
+
+```{r calculate combined riders count}
+combine_data_1 <- combine_data_1 %>% mutate(distance_frame = "200-2000 m")
+combine_data_2 <- combine_data_2 %>% mutate(distance_frame = "2000-9000 m")
+combine_data_3 <- combine_data_3 %>% mutate(distance_frame = "0-200 m")
+combine_data <- rbind(combine_data_1,combine_data_2,combine_data_3)
+
+combine_summary <- combine_data %>% 
+  group_by(member_casual, time_frame, distance_frame) %>% 
+  summarize(value=n())
+
+combine_summary$perc <- c(round(100*combine_summary$value[1]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[1],2),
+                          round(100*combine_summary$value[2]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[1],2),
+                          round(100*combine_summary$value[3]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[1],2),
+                          round(100*combine_summary$value[4]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[3],2),
+                          round(100*combine_summary$value[5]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[3],2),
+                          round(100*combine_summary$value[6]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[3],2),
+                          round(100*combine_summary$value[7]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[2],2),
+                          round(100*combine_summary$value[8]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[2],2),
+                          round(100*combine_summary$value[9]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[2],2),
+                          round(100*combine_summary$value[10]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[4],2),
+                          round(100*combine_summary$value[11]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[4],2),
+                          round(100*combine_summary$value[12]/aggregate(value~member_casual+time_frame, combine_summary, sum)$value[4],2)
+                          )
+```
+
+```{r boxplot combined riders count}
+ggplot(data=combine_summary, mapping=aes(x=distance_frame, y=value, fill=member_casual)) +
+  geom_col(position=position_dodge()) +
+  facet_grid(rows=vars(time_frame), cols=vars(member_casual)) +
+  geom_text(aes(label=paste(perc,"%")), vjust=-0.5, size=4) +
+  labs(title="riders Duration and Distance Proportion",
+       subtitle="Separated By User Type And Duration",
+       fill="User Type",
+       x="Distance",
+       y="Count") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) +
+  scale_y_continuous(limits=c(0,2250000))
+```
+
+```{r sankey diagram combined riders proportion}
+ggplot(data=combine_summary, mapping=aes(axis1 = time_frame, axis2 = distance_frame, y=value)) +
+  geom_alluvium(mapping=aes(fill=member_casual))+
+  geom_stratum(fill="white", color="black", size=1)+
+  geom_text(stat = "stratum",
+            aes(label = after_stat(stratum))) +
+  theme_void() +
+  scale_x_discrete(limits=c("Duration","Distance"), expand = c(.05, .05)) +
+  scale_fill_manual(values=c("#F9BB04","#4385F5")) + 
+  labs(title="riders Duration and Distance Proportion",
+       subtitle="Separated By User Type",
+       fill="User Type") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text())
+```
+
+from this analysis we could infer that :
+
+-   at **short duration**, we could see that the **cyclistic member** always **leading** the **casual riders** in any distance frame, whereas at duration **20-120 minutes** we could see that the **casual riders** always **leading** the **cyclistic member** at any distance frame. From this we could infer that the cyclistic member more likely to use the bike in a short time manner than the casual riders. So I think the **casual riders** in time frame **0-20 minutes** is really **good potential** to become the cyclistic member.
+-   from the bar graph we could also infer that mostly, whether it is casual riders or cyclistic member, user **tend** to use the bike at a **short time 0-20 minutess**, because the proportion of the user is bigger in 0-20 minutes rather than 20-120 minutes. In duration 0-20 minutes cyclistic member tend to use the bike at distance 200-2000m and 2000-9000m, just a little portion of cyclistic member use it for 0-200m, and the trend between casual riders and cyclistic member in 0-20 minutes is the same. Higher at 200-2000 m, medium at 2000-9000m and least at 0-200 m.
+-   for longer time frame **20-120 minutes**, member and casual riders tend to use the bike for **more far away 2000-9000 m**. Same as before the trend between casual and cyclistic member are the same, higher at 2000-9000 m, medium at 200-2000m and least at 0-200m
+
+## C.4. Analysis by Time
+
+### 1. Analysis by Days
+
+At this point We will try to explore how is the riders varies with days. First we filter the data by the distance and duration (0-120 minutes and 0-9000 m)
+
+```{r}
+# calculate average riders per day
+data_day <- data_cyclistic_clean %>% 
+  filter(duration <= 120 & distance <= 9000) %>% 
+  group_by(member_casual, day) %>% 
+  summarise(value=n()/52)
+
+day_number <- function(day_name){
+  num = c()
+  for (day in day_name){
+    if (day=="Monday"){
+      num <- append(num,1)
+    } else if (day=="Tuesday"){
+      num <- append(num,2)
+    } else if (day=="Wednesday"){
+      num <- append(num,3)
+    } else if (day=="Thursday"){
+      num <- append(num,4)
+    } else if (day=="Friday"){
+      num <- append(num,5)
+    } else if (day=="Saturday"){
+      num <- append(num,6)
+    } else if (day=="Sunday"){
+      num <- append(num,7)
+    }
+  }
+  return(num)
+}
+
+data_day$id <- day_number(data_day$day)
+```
+
+```{r}
+ggplot(data=data_day, mapping=aes(x=id, y=value, color=member_casual))+
+  geom_line(size=1) +
+  geom_point(size=3) +
+  theme_bw() +
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7),
+                   labels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) +
+  scale_y_continuous(breaks=seq(0,15000,3000),
+                     limits=c(0,15000)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="Average riders Count by Day",
+       subtitle="Separated by User Type",
+       color="User Type",
+       x="Day",
+       y="Average Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank()) +
+  geom_vline(xintercept=1, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=5, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=7, linetype="dashed", color="black", size=0.5) +
+  annotate("text", x=3, y=12000, label="Weekdays", color="black", size=5) +
+  annotate("text", x=6, y=12000, label="Weekdend", color="black", size=5)
+  
+```
+
+From the line graph we can see that, cyclistic member count per days tend to be stable at weekdays (Monday till Friday) rather than at weekend. Casual riders has its peak at weekend and less user at weekdays.Casual riders average number rise in weekend. From this graph we know that there are behavior difference between cyclistic member and casual riders in weekdays and weekend. If we want to convert casual riders into cyclistic member, the casual riders at weekdays (Monday till Friday) will be a good target rather than casual riders at weekend.
+
+### 2.Analysis by Started Time per Hour
+
+There are no started hour data, but we have date-time data when the riders begin his/her ride. I'll try to create the started hour data from the "started_at" column using lubridate function. Next I'll filter the data by the distance and duration (0-120 minutes and 0-9000 m)
+
+```{r create the start hour data}
+data_cyclistic_clean <- data_cyclistic_clean %>% 
+  mutate(started_hour = hour(data_cyclistic_clean$started_at))
+
+data_start_clean <- data_cyclistic_clean %>% filter(duration <= 120 & distance <= 9000)
+
+data_start_sum <- data_start_clean %>% 
+  group_by(member_casual, started_hour) %>% 
+  summarise(count_riders=n()/365)
+```
+
+after the hour data was created, next I'll plot the trend of riders count by his/her started time.
+
+```{r trend riders by started time}
+ggplot(data=data_start_sum, mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point(size=3)+
+  geom_line(size=1)+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  scale_y_continuous(breaks=seq(0,1100,100),
+                     limits=c(0,1100)) + 
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="Average riders Count by Started Time",
+       subtitle="Separated by User Type",
+       color="User Type",
+       x="Started Time (o'clock)",
+       y="Average Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank()) +
+  geom_vline(xintercept=8, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=17, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=12, linetype="dashed", color="black", size=0.5) +
+  geom_label(x=8, y=650, label="Peak 1", color="black", size=5) +
+  geom_label(x=12, y=650, label="Peak 2", color="black", size=5) +
+  geom_label(x=17, y=1050, label="Peak 3", color="black", size=5) + 
+  annotate("rect", xmin=7, xmax=9, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853") +
+  annotate("rect", xmin=16, xmax=18, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853") +
+  annotate("rect", xmin=11, xmax=13, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853")
+```
+
+From the line graph we can see that, cyclistic member has 3 peak value, first peak is at 8 O'clock, second peak is at 12 0'clock, and third peak is at 17 o'clock. I put annotation in the graph with green rectangle with width 2 hour. Area in the first peak might be the time when people commute to work. Area in the second peak might be the time when people have lunch break, and area in the third peak might be the time when people commute to home. It is interesting that there are more cyclistic member at the end of the work hour (16:00-18:00) rather than start work hour (07:00-09:00). Maybe people choose faster way to commute and have a relaxing day after work with bike. The trend in casual riders is slight difference, there are no obvious peak at peak 1 and 2 but at peak 3 is obvious, but we still could look at the tendencies to be the peak. This casual riders at the time 07:00 - 09:00, 11:00-13:00, and 16:00-18:00 will be a good fit to be the cyclistic member.
+
+### 3.Analysis by Weekend and Weekdays
+
+For the next step I'll try going further with time analysis by analyzing the bike user trend in sunday untill saturday
+
+```{r create data count riders per day per started time}
+data_daytime_sum <- data_start_clean %>% 
+  group_by(member_casual, day, started_hour) %>% 
+  summarise(count_riders=n()/52)
+data_daytime_sum$id <- day_number(data_daytime_sum$day)
+data_daytime_sum <- trasform(data_daytime_sum, id = as.character(id))
+```
+
+```{r trend of riders per day per started time}
+ggplot(data=filter(data_daytime_sum, member_casual=="member"),
+       mapping=aes(x=started_hour, y=count_riders, color=id))+
+  geom_point()+
+  geom_line()+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  scale_colour_brewer(palette="Blues", name = "id", labels = c("Monday", "Tuesday", "Wednesday","Thursday","Friday","Saturday","Sunday")) +
+  labs(title="Cyclistic Member Count Everyday",
+       subtitle="Separated by User Type",
+       color="Day",
+       x="Started Time",
+       y="Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank())
+
+ggplot(data=filter(data_daytime_sum, member_casual=="casual"),
+       mapping=aes(x=started_hour, y=count_riders, color=id))+
+  geom_point()+
+  geom_line()+
+  theme_bw() +
+  scale_colour_brewer(palette="YlOrRd", name = "id", labels = c("Monday", "Tuesday", "Wednesday","Thursday","Friday","Saturday","Sunday")) +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  labs(title="Casual riders Count Everyday",
+       subtitle="Separated by User Type",
+       color="Day",
+       x="Started Time",
+       y="Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank())
+```
+
+we could see that cyclistic member and casual riders has completely different trend between weekdays and weekend. Lets we separate the data into weekday data and weekend data.
+
+```{r separate the data into weekdays and weekend data}
+weekday_data <- filter(data_daytime_sum, day %in% c("Monday","Tuesday","Wednesday","Thursday","Friday"))
+weekday_data <- aggregate(count_riders~member_casual+started_hour, weekday_data, mean)
+weekday_data$label <- c("Weekday")
+
+weekend_data <- filter(data_daytime_sum, day %in% c("Saturday","Sunday")) 
+weekend_data <- aggregate(count_riders~member_casual+started_hour, weekend_data, mean)
+weekend_data$label <- c("Weekend")
+
+week_data <- rbind(weekday_data,weekend_data)
+```
+
+```{r plot the weekdays and weekend data}
+ggplot(data=weekday_data, mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point(size=3)+
+  geom_line(size=1)+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  scale_y_continuous(breaks=seq(0,1500,100),
+                     limits=c(0,1250)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="Average riders Count by Started Time in Weekdays",
+       subtitle="Separated by User Type",
+       color="User Type",
+       x="Started Time (o'clock)",
+       y="Average Count") +
+  theme(plot.title = element_text(hjust=0.5, size=15),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank()) +
+  geom_vline(xintercept=8, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=17, linetype="dashed", color="black", size=0.5) +
+  geom_vline(xintercept=12, linetype="dashed", color="black", size=0.5) +
+  geom_label(x=8, y=800, label="Peak 1", color="black", size=5) +
+  geom_label(x=12, y=600, label="Peak 2", color="black", size=5) +
+  geom_label(x=17, y=1200, label="Peak 3", color="black", size=5) + 
+  annotate("rect", xmin=7, xmax=9, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853") +
+  annotate("rect", xmin=16, xmax=18, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853") +
+  annotate("rect", xmin=11, xmax=13, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853")
+
+ggplot(data=weekend_data, mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point(size=3)+
+  geom_line(size=1)+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  scale_y_continuous(breaks=seq(0,1500,100),
+                     limits=c(0,1250)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="Average riders Count by Started Time in Weekend",
+       subtitle="Separated by User Type",
+       color="User Type",
+       x="Started Time (o'clock)",
+       y="Average Count") +
+  theme(plot.title = element_text(hjust=0.5, size=15),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank()) +
+  geom_label(x=15, y=1000, label="Good Time", color="black", size=5) +
+  annotate("rect", xmin=12, xmax=18, ymin=-Inf, ymax=Inf, alpha=.1, fill="#34A853")
+
+ggplot(data=week_data, mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point(size=3)+
+  geom_line(size=1)+
+  facet_wrap(~label)+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,2))+
+  scale_y_continuous(breaks=seq(0,1500,100),
+                     limits=c(0,1250)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="Average riders Count by Started Time",
+       subtitle="Separated by Days and User Type",
+       color="User Type",
+       x="Started Time (o'clock)",
+       y="Average Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.grid.minor=element_blank())
+```
+
+From this separation of weekdays and weekend, we can see that in weekdays there are still 3 peak time for cyclistic member, 8, 12, and 17 o'clock. casual riders at weekdays now has 2 obvious peak at 8 and 17 o'clock. More casual riders at weekend 12 - 18 o'clock (afternoon) this could be a good time to promote the cyclistic member conversion program. casual riders at time 7-9, 11-13, and 16 - 18 o'clock at weekdays could be good potential candidate to be cyclistic member.
+
+### 4. Analysis data by Started time, Duration, and Distance
+
+Going further with time analysis, I will combine it with defined duration (0-120 minutes) and defined distance (0-9000 m) before. First I will separate the data by duration and label each data point with corresponding duration, we will look at the distribution by started time for duration (0-20 minutes)
+
+```{r separate the data by duration}
+data_start_1 <- data_start_clean %>% filter(duration <= 20)
+data_start_1 <- data_start_1 %>% mutate(time_frame="0-20 minutes")
+
+data_start_2 <- data_start_clean %>% filter(duration > 20)
+data_start_2 <- data_start_2 %>% mutate(time_frame="20-120 minutes")
+```
+
+First I will analyze the data with duration 0-20 minutes
+
+```{r separate the 0-20 minutes data by distance and give label}
+# labeling the data with its distance
+data_start_1_1 <- data_start_1 %>% filter(distance <= 200)
+data_start_1_1 <- data_start_1_1 %>% mutate(distance_frame="0-200 m")
+data_start_1_2 <- data_start_1 %>% filter(distance > 200 & distance <= 2000)
+data_start_1_2 <- data_start_1_2 %>% mutate(distance_frame="200-2000 m")
+data_start_1_3 <- data_start_1 %>% filter(distance > 2000)
+data_start_1_3 <- data_start_1_3 %>% mutate(distance_frame="2000-9000 m")
+data_start_1 <- rbind(data_start_1_1, data_start_1_2, data_start_1_3)
+
+# clear the following data frame to save space
+rm(data_start_1_1, data_start_1_2, data_start_1_3)
+```
+
+```{r trend for duration 0-20 minutes separated by distance}
+# prepare the data for plotting
+data_start_1_sum <- data_start_1 %>% 
+  group_by(member_casual, started_hour, distance_frame) %>% 
+  summarise(count_riders=n())
+
+# plot the duration data
+ggplot(data=aggregate(count_riders~member_casual+started_hour, data_start_1_sum, sum), 
+       mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point()+
+  geom_line()+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  theme(panel.grid.minor=element_blank(),
+        plot.title = element_text(hjust=.5, size=15),
+        plot.subtitle = element_text(hjust=.5)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="riders Trend at Duration 0-20 minutes",
+       subtitle="Separated by User Type")
+
+# create separated line graph
+ggplot(data=data_start_1_sum, 
+       mapping=aes(x=started_hour, y=count_riders, color=member_casual)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~distance_frame) + 
+  theme_bw() + 
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,23,4), 
+                     labels=seq(0,23,4))+
+  theme(panel.grid.minor=element_blank(),
+        plot.title = element_text(hjust=.5, size=15),
+        plot.subtitle = element_text(hjust=.5)) +
+  labs(title="riders Trend Over Time With Duration 0-20 minutes",
+       subtitle="Separated by Distance",
+       color="User Type")
+```
+
+From the line chart we could see that at started hour from 4:00 till about 22:00 cyclistic member leading the casual riders. But casual riders behaves like the cyclistic member, goind up from the 04:00 till 17:00 and going down after 17:00 till 22:00. I think casual riders who use the bike at 04:00 - 22:00 is a good potential to become a cyclistic member. This trend exactly same with line chart before. Further analysis in distance we know that, there are a lot of data in distance 200-2000 m compare to another distance. Every plot separated by distance frame it shows similar behaviour, from 4:00 - 22:00 the cyclistic member lead the casual riders. To be more specific I think casual riders at distance 200 - 9000 m, with time frame 0-20 minutes will be a good candidate to be cyclistic member. Next I will analyze the data on the time frame 20-120 minutes
+
+```{r labeling 20-120 minutes data by distance}
+# labeling the data with distance
+data_start_2_1 <- data_start_2 %>% filter(distance <= 200)
+data_start_2_1 <- data_start_2_1 %>% mutate(distance_frame="0-200 m")
+data_start_2_2 <- data_start_2 %>% filter(distance > 200 & distance <= 2000)
+data_start_2_2 <- data_start_2_2 %>% mutate(distance_frame="200-2000 m")
+data_start_2_3 <- data_start_2 %>% filter(distance > 2000)
+data_start_2_3 <- data_start_2_3 %>% mutate(distance_frame="2000-9000 m")
+data_start_2 <- rbind(data_start_2_1, data_start_2_2, data_start_2_3)
+
+# erase the following dataframe to save space
+rm(data_start_2_1, data_start_2_2, data_start_2_3)
+```
+
+```{r trend for duration 20-120 minutes separated by distance}
+# prepare the data for plotting
+data_start_2_sum <- data_start_2 %>% 
+  group_by(member_casual, started_hour, distance_frame) %>% 
+  summarise(count_riders=n())
+
+# plot the data
+ggplot(data=aggregate(count_riders~member_casual+started_hour, data_start_2_sum, sum), 
+       mapping=aes(x=started_hour, y=count_riders, color=member_casual))+
+  geom_point()+
+  geom_line()+
+  theme_bw() +
+  scale_x_continuous(breaks=seq(0,23,1))+
+  theme(panel.grid.minor=element_blank(),
+        plot.title = element_text(hjust=.5, size=15),
+        plot.subtitle = element_text(hjust=.5)) +
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  labs(title="riders Trend at Duration 20-120 minutes",
+       subtitle="Separated by User Type",
+       fill="User Type")
+
+# create separated line graph
+ggplot(data=data_start_2_sum, 
+       mapping=aes(x=started_hour, y=count_riders, color=member_casual)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~distance_frame) + 
+  theme_bw() + 
+  scale_color_manual(values=c("#F9BB04","#4385F5")) +
+  scale_x_continuous(breaks=seq(0,23,4), 
+                     labels=seq(0,23,4))+
+  theme(panel.grid.minor=element_blank(),
+        plot.title = element_text(hjust=.5, size=15),
+        plot.subtitle = element_text(hjust=.5)) +
+  labs(title="riders Trend Over Time With Duration 20-120 minutes",
+       subtitle="Separated by Distance",
+       color="User Type")
+```
+
+there is an interesting part of this data, we could see that at the time 4:00 till 8:00 cyclistic member lead the casual riders. This means that there are more cyclistic member use the bike between 4:00 - 8:00 to commute for 20-120 minutes than the casual riders. At the rest of the time, there are more casual riders than the cyclistic member. Further analysis into distane i found that most of the cyclistic member take the bike for distance 2000-9000m, and we could see the feature at 4:00 - 9:00 just show up in 2000-9000 m distance. At another distance the cyclistic member not exceeding the casual riders. So I think for time frame 20-120 minutes, casual riders who take the bike till distance 2000-9000 m will be a great candidate to become the cyclistic member. Especially when use the bike at the time 4:00 - 8:00 when there are more cyclistic member use the bike, or we could also hope there are also casual riders who behave simillar like the cyclistic member at distance 2000-9000 m for time 20-120 minutes at the another started hour except 4:00 - 9:00.
+
+from this time analysis we could infer that :
+
+-   In weekdays, there are peak time for cyclistic member 7:00-9:00 o'clock, 11:00-13:00 o'clock, and 16:00-18:00 o'clock. The trend of the casual riders also follows the cyclistic member. In weekends there are more casual riders between 12:00 til 18:00 than cyclistic member. This could be the people who use the bike for leisure time.
+
+-   From this weekend and weekdays trend we can make an opinion that cyclistic member use the bike mainly for work commuting rather than enjoying the city.
+
+-   For duration 0-20 minutes there are more cyclistic member and casual riders in distance 200-9000 m and the trend is similar to weekdays trend (Commuting Trend) .While in the distance 0-200 m there are not much cyclist and the trend is not similar with the weekdays trend.
+
+-   Good candidate for cyclistic member is the casual riders whom use the bike at weekdays, for duration 0-20 minutes for distance 200-2000 m. Because this casual riders trends behaves like cyclistic member trend, maybe we could convert a lot of casual riders for this group of the time.
+
+### C.5. Analysis by Rideable Type
+
+Next we will try to analyze the data based on the rideable type, as we know rideable type comprises of classic bike, electric bike, and docked bike.
+
+```{r data prepare for rideable analysis}
+data_rideable <- data_cyclistic_clean %>% filter(duration <= 120 & distance <= 9000)
+data_rideable <- data_rideable %>% 
+  group_by(member_casual, rideable_type) %>% 
+  summarize(value=n())
+
+data_rideable$rideable_type <- factor(data_rideable$rideable_type,
+                                      levels = c("docked_bike","electric_bike","classic_bike"))
+data_rideable$percent <- c(round(100*data_rideable$value[1]/aggregate(value~member_casual, data_rideable, sum)$value[1],1),
+                           round(100*data_rideable$value[2]/aggregate(value~member_casual, data_rideable, sum)$value[1],1),
+                           round(100*data_rideable$value[3]/aggregate(value~member_casual, data_rideable, sum)$value[1],1),
+                           round(100*data_rideable$value[4]/aggregate(value~member_casual, data_rideable, sum)$value[2],1),
+                           round(100*data_rideable$value[5]/aggregate(value~member_casual, data_rideable, sum)$value[2],1))
+```
+
+```{r plot the user type and rideable tipe}
+# create the bar plot
+ggplot(data=data_rideable, mapping=aes(x=member_casual, y=value, fill=rideable_type)) +
+  geom_col(position="dodge") +
+  geom_text(aes(label=paste(percent,"%")), position=position_dodge(width=.9), vjust=1.5, color="white") +
+  labs(title="User Type Bike Proportion",
+       subtitle="Separated by Bike Type",
+       fill="Bike Type",
+       x="User Type",
+       y="Count") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5)) +
+  scale_fill_manual(values=c("#DE2929","#31A531","#FF8410")) +
+  scale_y_continuous(breaks=seq(0,2000000,250000),
+                     limits=c(0,2000000))
+```
+
+The bar chart shows that there are no docked bike for cyclistic member, docked bike just used by the casual riders. Also for cyclistic member the percentage of riders who use classic bike is larger than electric bike. Casual riders tend to use more electric bike than classic bike, and docke bike become the minority in casual riders. For further analysis, I'll separate the analysis using duration and distance category.
+
+```{r prepare the data}
+data_rideable_2 <- rbind(data_start_1, data_start_2) %>% 
+  select(member_casual, rideable_type, distance_frame, time_frame)
+data_rideable_2$rideable_type <- factor(data_rideable_2$rideable_type, levels = c("docked_bike",
+                                                                              "electric_bike",
+                                                                              "classic_bike"))
+```
+
+```{r plot the data separated by duration and distance}
+
+# plot the data separated by distance
+ggplot(data=data_rideable_2, mapping=aes(x=distance_frame, fill=rideable_type)) +
+  geom_bar(position="dodge") +
+  facet_wrap(~member_casual) +
+  theme_bw() +
+  scale_fill_manual(values=c("#DE2929","#31A531","#FF8410"))
+
+# plot thedata separated by duration
+ggplot(data=data_rideable_2, mapping=aes(x=time_frame, fill=rideable_type)) +
+  geom_bar(position="dodge") +
+  facet_wrap(~member_casual) +
+  theme_bw() +
+  scale_fill_manual(values=c("#DE2929","#31A531","#FF8410"))
+
+# plot the data separated by duration and distance
+ggplot(data=data_rideable_2, mapping=aes(x=distance_frame, fill=rideable_type)) +
+  geom_bar(position="dodge") +
+  facet_grid(rows=vars(time_frame), cols=vars(member_casual)) +
+  theme_bw() +
+  scale_fill_manual(values=c("#DE2929","#31A531","#FF8410")) +
+  scale_y_continuous(labels=scales::comma) +
+  labs(title="User Type Bike Count by Distance",
+       subtitle="Separated By Duration, User Type, And Bike Type",
+       fill="Bike Type",
+       x="Distance (m)",
+       y="Count") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5))
+
+# plot the proportion of rideable type separated by distance and duration
+ggplot(data=data_rideable_2, mapping=aes(x=distance_frame, fill=rideable_type)) +
+  geom_bar(position="fill") +
+  facet_grid(rows=vars(time_frame), cols=vars(member_casual)) +
+  theme_bw() +
+  scale_fill_manual(values=c("#DE2929","#31A531","#FF8410")) +
+  scale_y_continuous(labels = scales::percent) +
+  geom_hline(yintercept=.5, linetype="dashed", color="black", size=0.5) +
+  labs(title="User Type Bike Proportion by Distance",
+       subtitle="Separated By Duration, User Type, And Bike Type",
+       fill="Bike Type",
+       x="Distance (m)",
+       y="Percentage of User") +
+  theme(plot.title = element_text(hjust=0.5, size=20),
+        plot.subtitle = element_text(hjust=0.5))
+
+```
+
+The compound bar plot show us that classic bike are more popular than the electric bike for distance 200-2000m and duration 0-20 minutes, this distance and duration is the most favorite among the cyclistic user. But when the distance is far enough, 2000-9000 m cyclistic member tend to use electric bike rather than classic bike, although the difference isn't so significant. I think casual riders who use classic and electric bike within time 0-20 minutes and distance 200-9000 m will be good potential to become cyclistic member. For duration 20-120 minutes there are a lot of member type use classic bike for commuting with distance 2000-9000 m. there is also a lot of cyclistic member use electric bike to commute for 20-120 minutes for distance 2000-9000 m. I think casual riders who use classic bike for distance 2000-9000 m and for duration 20-120 minutes is a good potential to become cyclistic member. From the proportion plot we could see that almost 50% in all duration and distance group for cyclistic member use classic bike. This is not so different from casual riders, where the highest proportion mainly still acquired by classic bike tipe.
+
+from this rideable type analysis we could infer that
+
+-   classic bike is the most popular bike used by the cyclistic member, in order to effectively target the casual riders to become cyclistic member I'll suggest to target the classic member first.
+
+-   It is not recommended to target the casual riders who use docked bike, because there are no cyclistic member who use the docked bike.
+
+-   for more specific target I suggest to target the casual riders who use the bike for distance 200-2000 m and within duration 0-20 minutes. Because there are more casual riders in those group than other group of duration and distance. And for the second target you can consider to target the casual riders who use electric bike or classic bike for distance 2000-9000 m with duration 0-20 minutes, and 2000-9000 m with duration 20-120 minutes.
+
+## C.6. Analysis by Start and End Station
+
+Lets prepare the data for analysis by station, we need start station name, stop station name, the coordinate and user type data. since there are a lot of missing start station name from the data, which is caused by electric bike data, I'll limit this analysis based on available start station data name and end station data name. This analysis result might be valid for docked bike classic bike, and a part of the electric bike user, because non existence of start station data is at the user who use electric bike. Let's se how is data portion we use for this start station analysis. From this analysis we will know that at which station does the marketing team will run the program for converting casual riders into cyclistic member and achieve the target. But first I want to know how much the proportion of data I'll use to do analysis based on station.
+
+```{r filter row with start station name and end station name}
+data_station <- Data_Cyclistic %>% filter(!is.na(start_station_name) & !is.na(end_station_name))
+
+data_station <- data_station %>% 
+  mutate(distance = round(distHaversine(cbind(data_station$start_lng,
+                                              data_station$start_lat),
+                                        cbind(data_station$end_lng,
+                                              data_station$end_lat)),digits=5))
+
+data_station <- data_station %>% filter(duration <= 120 & distance <= 9000) %>% 
+  select(start_station_name, start_lat, start_lng, end_station_name, end_lat, end_lng, member_casual)
+```
+
+```{r count data station used}
+count_station <- data.frame(data=c("Station Data Used","Station Data Filtered"),
+                             data_count=c(nrow(data_station),nrow(Data_Cyclistic)-nrow(data_station)))
+
+count_station$fraction <- count_station$data_count / sum(count_station$data_count)
+count_station$ymax <- cumsum(count_station$fraction)
+count_station$ymin <- c(0, head(count_station$ymax, n=-1))
+count_station$labelPosition <- (count_station$ymax + count_station$ymin)/2
+count_station$label <- paste0(count_station$data, "\n fraction: ", round(count_station$fraction*100,2),"%")
+
+ggplot(data=count_station, mapping=aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3.5, fill=data)) +
+  geom_rect() +
+  geom_text(x=2, aes(y=labelPosition, label=label, color=data), size=3.5) +
+  labs(title="Portion of station data used and filtered") +
+  scale_fill_manual(values=c("#EA4235","#43A853")) +
+  scale_color_manual(values=c("#EA4235","#43A853")) +
+  coord_polar(theta="y") +
+  xlim(c(0,4)) +
+  theme_void()
+```
+
+from this we know that we use 76,95% of the data for station analysis. This is acceptable I think for finding the station target. Next we will plot the station coordinate on the chicago map.
+
+```{r chicago longitude and latitude boundary}
+chicago <- get_stamenmap(bbox = c(left = -87.84, bottom = 41.639835, right = -87.52, top = 42.070835), zoom=11)
+```
+
+```{r fig.height=10, fig.width=10}
+# start cyclistic member density plot
+ggmap(chicago) + 
+  stat_density_2d(data=filter(data_station, member_casual=="member"),
+                  mapping=aes(x=start_lng, y=start_lat, fill=stat(level)),
+                  alpha=.5,
+                  bins=1000,
+                  geom="polygon") +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  scale_fill_gradientn(colors = brewer.pal(7,"Blues")) +
+  labs(title="Cyclistic Member Start Station Density Plot",
+       subtitle="Show The Frequency of Start Station Used By Cyclistic Member") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=12),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank())
+
+# end cyclistic member density plot
+ggmap(chicago) + 
+  stat_density_2d(data=filter(data_station, member_casual=="member"),
+                  mapping=aes(x=end_lng, y=end_lat, fill=stat(level)),
+                  alpha=.5,
+                  bins=1000,
+                  geom="polygon") +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  scale_fill_gradientn(colors = brewer.pal(7,"Blues")) +
+  labs(title="Cyclistic Member End Station Density Plot",
+       subtitle="Show The Frequency of End Station Used By Cyclistic Member") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=12),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank())
+
+# start casual riders density plot
+ggmap(chicago) + 
+  stat_density_2d(data=filter(data_station, member_casual=="casual"),
+                  mapping=aes(x=start_lng, y=start_lat, fill=stat(level)),
+                  alpha=.5,
+                  bins=1000,
+                  geom="polygon") +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  scale_fill_gradientn(colors = brewer.pal(7,"YlOrRd")) +
+  labs(title="Casual riders Start Station Density Plot",
+       subtitle="Show The Frequency of Start Station Used By casual riders") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=12),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank())
+
+
+# end casual riders density plot
+ggmap(chicago) + 
+  stat_density_2d(data=filter(data_station, member_casual=="casual"),
+                  mapping=aes(x=end_lng, y=end_lat, fill=stat(level)),
+                  alpha=.5,
+                  bins=1000,
+                  geom="polygon") +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  scale_fill_gradientn(colors = brewer.pal(7,"YlOrRd")) +
+  labs(title="Casual riders End Station Density Plot",
+       subtitle="Show The Frequency of End Station Used By casual riders") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=12),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank())
+```
+
+next Ill count the frequency of every station in chicago and plot the frequency to the map and plot the frequency using scatter plot.
+
+```{r calculate the station in count used in all area}
+# start station used by casual riders : 1239 station
+start_station_casual <- data_station %>% 
+  filter(member_casual=="casual") %>% 
+  select(start_station_name, start_lat, start_lng) %>% 
+  group_by(start_station_name) %>% 
+  summarize(total_start = n(),
+            start_lat = mean(start_lat),
+            start_lng = mean(start_lng)) %>%
+  arrange(desc(total_start))
+start_station_casual$user_type <- c("casual")
+
+# end station used by casual riders : 1280 station
+end_station_casual <- data_station %>%
+  filter(member_casual=="casual") %>% 
+  select(end_station_name, end_lat, end_lng) %>% 
+  group_by(end_station_name) %>% 
+  summarize(total_end = n(),
+            end_lat = mean(end_lat),
+            end_lng = mean(end_lng)) %>%
+  arrange(desc(total_end))
+end_station_casual$user_type <- c("casual")
+
+# start station use by cyclistic member : 1173 station
+start_station_member <- data_station %>%
+  filter(member_casual=="member") %>% 
+  select(start_station_name, start_lat, start_lng) %>% 
+  group_by(start_station_name) %>% 
+  summarize(total_start = n(),
+            start_lat = mean(start_lat),
+            start_lng = mean(start_lng)) %>%
+  arrange(desc(total_start))
+start_station_member$user_type <- c("member")
+
+# end station used by cyclistic member : 1162 station
+end_station_member <- data_station %>%
+  filter(member_casual=="member") %>% 
+  select(end_station_name, end_lat, end_lng) %>%
+  group_by(end_station_name) %>% 
+  summarize(total_end = n(),
+            end_lat = mean(end_lat),
+            end_lng = mean(end_lng)) %>%
+  arrange(desc(total_end))
+end_station_member$user_type <- c("member")
+```
+
+```{r fig.height=10, fig.width=10}
+ggmap(chicago) + 
+  geom_point(data=start_station_member, mapping=aes(x=start_lng, y=start_lat, size=total_start), colour="#4385F5", alpha=.7) +
+  scale_size_binned(breaks=seq(0,60000,5000)) +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  labs(title="Cyclistic Member Start Station Density Plot",
+       subtitle="Show The Frequency of Start Station Used by Cyclistic Member",
+       colour="Count") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13))
+
+ggmap(chicago) + 
+  geom_point(data=end_station_member, mapping=aes(x=end_lng, y=end_lat, size=total_end), colour="#4385F5", alpha=.7) +
+  scale_size_binned(breaks=seq(0,60000,5000)) +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  labs(title="Cyclistic Member End Station Density Plot",
+       subtitle="Show The Frequency of End Station Used by Cyclistic Member",
+       colour="Count") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13))
+
+ggmap(chicago) + 
+  geom_point(data=start_station_casual, mapping=aes(x=start_lng, y=start_lat, size=total_start), colour="#F9BB04", alpha=.7) +
+  scale_size_binned(breaks=seq(0,60000,5000)) +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  labs(title="Casual riders Start Station Density Plot",
+       subtitle="Show The Frequency Of Start Station Used by Casual riders",
+       colour="Count") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13))
+
+ggmap(chicago) + 
+  geom_point(data=end_station_casual, mapping=aes(x=end_lng, y=end_lat, size=total_end), colour="#F9BB04", alpha=.7) +
+  scale_size_binned(breaks=seq(0,60000,5000)) +
+  annotate("rect", xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("rect", xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805, alpha=.5, fill="#EA4235", color="#990000") +
+  annotate("text", label="Zone 1" ,x=-87.57, y=41.9275, color="#EA4235", size=5) +
+  annotate("text", label="Zone 2" ,x=-87.55, y=41.7925, color="#EA4235", size=5) +
+  labs(title="Casual riders End Station Density Plot",
+       subtitle="Show The Frequency Of End Station Used by Casual riders",
+       colour="Count") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13))
+```
+
+The map tell us that zone 1 and 2 comprise of high frequency cyclistic member and casual riders who start using the bike. To know the commuting activity for new cyclistic member target, we have to know the station used for start and end both by cyclistic member and casual riders. Next Ill isolate the area with high frequency start station from cyclistic member and casual riders with this longitude and latitude boundry from zone 1 and zone 2
+
+-   **Zone 1** : xmin=-87.675, xmax=-87.595, ymin=41.855, ymax=41.99
+-   **Zone 2** : xmin=-87.610, xmax=-87.575, ymin=41.780, ymax=41.805
+
+I'll pick the station which have more than 10 average user per day, if I pick the station with average of user less that 10 user per day i think it wont be significant for the companies target.
+
+```{r find station used for start and end in zone 1 and 2 by cyclistic member and casual riders}
+# station used by casual to start and end : 1197 station
+join_station_casual <- start_station_casual %>% 
+  inner_join(end_station_casual, by=c("start_station_name"="end_station_name")) %>% 
+  mutate(avg_start = round(total_start/365,0), 
+         avg_end = round(total_end/365,0))
+join_station_casual$latitude <- (join_station_casual$start_lat+join_station_casual$end_lat)/2
+join_station_casual$longitude <- (join_station_casual$start_lng+join_station_casual$end_lng)/2
+join_station_casual <- join_station_casual %>% 
+  select(start_station_name, total_start, total_end, avg_start, avg_end, latitude, longitude, user_type.x) 
+colnames(join_station_casual) <- c("station_name","total_start","total_end","avg_start","avg_end",
+                                   "station_latitude","station_longitude","user_type")
+
+# station used by cyclistic member to start and end : 1115 station
+join_station_member <- start_station_member %>% 
+  inner_join(end_station_member, by=c("start_station_name"="end_station_name")) %>% 
+  mutate(avg_start = round(total_start/365,0), 
+         avg_end = round(total_end/365,0))
+join_station_member$latitude <- (join_station_member$start_lat+join_station_member$end_lat)/2
+join_station_member$longitude <- (join_station_member$start_lng+join_station_member$end_lng)/2
+join_station_member <- join_station_member %>% 
+  select(start_station_name, total_start, total_end, avg_start, avg_end, latitude, longitude, user_type.x) 
+colnames(join_station_member) <- c("station_name","total_start","total_end","avg_start","avg_end",
+                                   "station_latitude","station_longitude","user_type")
+
+# station use to start and end for cyclistic member in zone 1 : 237 station
+zone_1_member <- join_station_member %>% 
+  filter(station_latitude >= 41.855 & station_latitude <= 41.99 
+         & station_longitude >= -87.675 & station_longitude <= 87.675
+         & avg_start >= 10 & avg_end >= 10)
+
+# station use to start and end for casual riders in zone 1  : 164 station
+zone_1_casual <- join_station_casual %>% 
+  filter(station_latitude >= 41.855 & station_latitude <= 41.99 
+         & station_longitude >= -87.675 & station_longitude <= 87.675
+         & avg_start >= 10 & avg_end >= 10)
+
+# station use to start and end for cyclistic member in zone 2 : 10 station
+zone_2_member <- join_station_member %>% 
+  filter(station_latitude >= 41.780 & station_latitude <= 41.805 
+         & station_longitude >= -87.610 & station_longitude <= 87.575
+         & avg_start >= 10 & avg_end >=10)
+
+# station use to start and end for casual riders in zone 2 : 4 station
+zone_2_casual <- join_station_casual %>% 
+  filter(station_latitude >= 41.780 & station_latitude <= 41.805 
+         & station_longitude >= -87.610 & station_longitude <= 87.575
+         & avg_start >= 10, avg_end >=10) 
+```
+
+next I want to know how is the proportion of average start and end in every station. We assume that if a station has 10 avg start and 10 average end, we could say that there are 10 person commuting at those station.
+
+```{r comparing average start and average end in every station used}
+zone_1_member_avg <- zone_1_member %>% 
+  select(station_name, avg_start, avg_end) %>% 
+  gather(key="average", value="value", 2:3) %>% 
+  arrange(desc(value), station_name)
+
+zone_1_casual_avg <- zone_1_casual %>% 
+  select(station_name, avg_start, avg_end) %>% 
+  gather(key="average", value="value", 2:3) %>% 
+  arrange(station_name)
+
+zone_2_member_avg <- zone_2_member %>% 
+  select(station_name, avg_start, avg_end) %>% 
+  gather(key="average", value="value", 2:3) %>% 
+  arrange(station_name)
+
+zone_2_casual_avg <- zone_2_casual %>% 
+  select(station_name, avg_start, avg_end) %>% 
+  gather(key="average", value="value", 2:3) %>% 
+  arrange(station_name)
+```
+
+```{r proportion plot of average user per day}
+ggplot(data=zone_1_member_avg) +
+  geom_col(mapping=aes(y=station_name, x=value, fill=average), position="fill", width=1) +
+  scale_x_continuous(labels=scales::percent) +
+  theme_bw() +
+  labs(title="Cyclistic Member Start and End Proportion at Zone 1",
+       subtitle="Separated by Average Start and End, Station With > 10 avg user/day",
+       fill="Average/Day",
+       x= "Proportion",
+       y= "Station Name (237 Station)") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  scale_fill_brewer(palette="Blues") +
+  geom_vline(xintercept=.5, linetype="dashed", color="black", size=0.5) 
+  
+
+ggplot(data=zone_1_casual_avg) +
+  geom_col(mapping=aes(y=station_name, x=value, fill=average), position="fill", width=1) +
+  theme_bw() +
+  scale_x_continuous(labels=scales::percent) +
+  labs(title="Casual riders Start and End Proportion at Zone 1",
+       subtitle="Separated by Average Start and End, Station With > 10 avg user/day",
+       fill="Average/Day",
+       x= "Proportion",
+       y= "Station Name (164 Station)") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  scale_fill_brewer(palette="YlOrRd") +
+  geom_vline(xintercept=.5, linetype="dashed", color="black", size=0.5) 
+
+ggplot(data=zone_2_member_avg) +
+  geom_col(mapping=aes(y=reorder(station_name, value), x=value, fill=average), position="fill", width=1) +
+  theme_bw() +
+  scale_x_continuous(labels=scales::percent) +
+  labs(title="Cyclistic Member Start and End Proportion at Zone 2",
+       subtitle="Separated by Average Start and End, Station With > 10 avg user/day",
+       fill="Average/Day",
+       x= "Proportion",
+       y= "Station Name (10 Station)") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13)) +
+  scale_fill_brewer(palette="Blues") +
+  geom_vline(xintercept=.5, linetype="dashed", color="black", size=0.5) 
+
+ggplot(data=zone_2_casual_avg) +
+  geom_col(mapping=aes(y=reorder(station_name, value), x=value, fill=average), position="fill", width=1) +
+  theme_bw() +
+  scale_x_continuous(labels=scales::percent) +
+  labs(title="Casual riders Start and End Proportion at Zone 2",
+       subtitle="Separated by Average Start and End, Station With > 10 avg user/day",
+       fill="Average/Day",
+       x= "Proportion",
+       y= "Station Name (4 Station)") +
+    theme(plot.title = element_text(hjust=0.5, size=18),
+        plot.subtitle = element_text(hjust=0.5, size=13)) +
+  scale_fill_brewer(palette="YlOrRd") +
+  geom_vline(xintercept=.5, linetype="dashed", color="black", size=0.5) 
+```
+
+The proportion plot tell us that every station which is used to start and end has proportion around 50% of people who start from that station and 50% of people who stop at that station. It means, the person who start from those station end in the same station is commuting. In zone 1 there are 237 station used by cyclistic member for commuting, whereas for casual riders there is just 164 station for commuting. And in zone 2 there are 10 station used by cyclistic member for commuting ,and 4 station used by casual riders for commuting. Lets find the common station used by both cyclistic member and casual riders to target the promotion strategy
+
+```{r find common station used by casual riders and cyclistic member}
+zone_1_member_casual_station <- zone_1_member %>% 
+  inner_join(zone_1_casual, by=c("station_name")) %>% 
+  select(station_name)
+
+zone_2_member_casual_station <- zone_2_member %>% 
+  inner_join(zone_2_casual, by=c("station_name")) %>% 
+  select(station_name)
+
+print(paste("From the calculation there are",nrow(zone_1_member_casual_station),"prospect station in zone 1"))
+print(paste("From the calculation there are",nrow(zone_2_member_casual_station),"prospect station in zone 1"))
+
+head(zone_1_member_casual_station, n=50)
+head(zone_2_member_casual_station)
+```
+
+hence we can target out promotion campaign or strategy to 160 station in zone 1 and 4 station in zone 2. Next I'll try to find how many person we could meet every day in those 160 station in zone 1 and 4 station in zone 2.
+
+```{r calculating prospect person in zone 1 and 2}
+target_zone_1 <- zone_1_casual %>% 
+  filter(zone_1_casual$station_name %in% zone_1_member_casual_station$station_name) %>% 
+  mutate(person_per_day = pmin(avg_start,avg_end)) %>% 
+  select(station_name, person_per_day)
+
+target_zone_2 <- zone_2_casual %>% 
+  filter(zone_2_casual$station_name %in% zone_2_member_casual_station$station_name) %>% 
+  mutate(person_per_day = pmin(avg_start,avg_end)) %>% 
+  select(station_name, person_per_day)
+
+person_zone_1 <- sum(target_zone_1$person_per_day)
+person_zone_2 <- sum(target_zone_2$person_per_day)
+
+print(paste("For zone 1 we have potential of",person_zone_1,"person"))
+print(paste("For zone 2 we have potential of",person_zone_2,"person"))
+```
+
+so we could meet around 3449 person in zone 1 and 2 every day and if we could convert all of this people from casual riders into cyclistic member. how much increment could we have if we convert all this casual riders into cyclistic member?
+
+```{r}
+member_count <- Data_Cyclistic %>% 
+  filter(member_casual=="member")
+
+member_percentage_increase <- round((100*365*(person_zone_1+person_zone_2))/nrow(member_count),1)
+
+print(paste("Total cyclistic member usage in the company",nrow(member_count),"usage"))
+print(paste("We could achive increment in",member_percentage_increase,"%"))
+```
+
+```{r percentage achieve conversion prediction}
+member_prediction <- data.frame(data=c("Old Cyclistic Member","New Cyclistic Member"),
+                             data_count=c(nrow(member_count),365*(person_zone_1+person_zone_2)))
+
+member_prediction$fraction <- member_prediction$data_count / sum(member_prediction$data_count)
+member_prediction$ymax <- cumsum(member_prediction$fraction)
+member_prediction$ymin <- c(0, head(member_prediction$ymax, n=-1))
+member_prediction$labelPosition <- (member_prediction$ymax + member_prediction$ymin)/2
+member_prediction$label <- paste0(member_prediction$data, "\n", round(member_prediction$fraction*100,2),"%")
+```
+
+```{r plot the donut chart}
+ggplot(data=member_prediction, mapping=aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=data)) +
+  geom_rect(color="white", size=2) +
+  geom_label(x=3, aes(y=labelPosition, label=label), size=4, color="black", fontface="bold") +
+  labs(title="New Cyclistic Member Proportion from Conversion Program",
+       subtitle="Calculated by Average User per Year") +
+  scale_fill_manual(values=c("#9ECAE1","#4385F5")) +
+  coord_polar(theta="y") +
+  xlim(c(0,4)) +
+  theme_void() +
+  theme(plot.title = element_text(hjust=0.5, size=13),
+        plot.subtitle = element_text(hjust=0.5),
+        legend.position = "none")
+```
+
+so we could achieve 37,3% increase in cyclistic membership this quarter if we could convert he 3449 person from the target station in zone 1 and 2. So the new portion for cyclistic member was comprises from 27.14% new member and 72,86% old member.
+
+from this station analysis we can infer some information : - the activity of cyclistic members and casual riders are centered in zone 1 and 2 - 160 target station at zone 1 and 4 station at zone 2 - cyclistic company could meet this project target increment of 25% amount of cyclistic member through conversion of 3449 casual riders person where them usually use the target station 1 and 2 for commuting purpose. - The percentage of new cyclistic member after this project finished is forecasted to be 27.14% of new cyclistic member, and 72.86% the rest is old cyclistic member
+
+# D. Data Analysis Summary
+
+After finishing duration, distance, time, rideable type, and station analysis we could get meaningfull insight to support the company program such as :
+
+-   For completing the target for increasing the number of cyclistic member by the end of this quarter there are 160 most used station in zone 1, and 4 most used station in zone 2. If we could convert all of cyclistic member who usually use bike for commuting by using this 164 station there will be 37.3% increase in the amount of old cyclistic member, and the proportion of the cyclistic member will become 27,14% from new cyclistic member and 72,86% from old cyclistic member.
+
+-   The company can run their promotion program on weekdays especially when people commuting in the morning (7:00-9:00 A.M), when lunch time (11:00 AM - 1:00 PM), or when people commuting in the afternoon (4:00-6:00 PM). Or company can also run their promotion program on weekend every 12:00-6:00 PM because at this time there is much casual riders in Chicago
+
+-   Never target casual riders with docked bike, just target casual riders who use electric bike or classic bike. The most popular bike among the cyclistic member is classic bike, then it is very recommended to target casual riders who used classic bike first before targeting casual riders who used electric bike.
+
+-   If the company want to look at the duration and distance data, I'll suggest to target the casual riders who use the bike with duration 0-20 minutes and distance 200-2000 first, because in this distance and duration there are a lot of casual riders that behave like cyclistic member. Then the second target is the group with duration 0-20 minutes and distance 2000-9000 m, the last target is from the group with duration 20-120 minutes and distance 2000-9000 m. The rest of the group of duration and distance also can be tried to, but there wont be significant change in the increment because the number is relatively small compared to already mentioned group of duration and distance.
